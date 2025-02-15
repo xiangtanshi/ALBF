@@ -68,7 +68,7 @@ def sample_selection(label):
     return np.array(list(selected))
 
 
-def get_dataset(data : Literal['dude-smi','lit-smi','lit-pkl'], types: Literal['bit','norm'], name: str = 'aa2ar', dim: int = 256, clip_f: bool=False):
+def get_dataset(data : Literal['dude-smi','lit-smi','lit-pkl'], types: Literal['bit','norm'], name: str = 'aa2ar', dim: int = 128, clip_f: bool=False):
     '''
     
     '''
@@ -88,6 +88,16 @@ def get_dataset(data : Literal['dude-smi','lit-smi','lit-pkl'], types: Literal['
         label = np.array(label_list)
         score = -np.array(score_list)
         feature, ecfp = vectorize(smiles_list,dim=dim,types=types)
+    elif data == 'dude-z':
+        with open(f'./vs/raw_data/dude-z/{name}/ligands.smi','r') as f:
+            active_list = [line.split()[0] for line in f.readlines()]
+        with open(f'./vs/raw_data/dude-z/{name}/decoys.smi','r') as f:
+            decoy_list = [line.split()[0] for line in f.readlines()]
+        smiles_list = active_list + decoy_list
+        label_list = [1 for i in range(len(active_list))] + [0 for i in range(len(decoy_list))]
+        label = np.array(label_list)
+        score = np.zeros(len(smiles_list))
+        feature, ecfp = vectorize(smiles_list,dim=dim,types=types)      
     elif data == 'lit-smi':
         with open(f'./vs/raw_data/receptor-litpcba/{name}/smiles.txt','r') as file:
             smiles_list = [line.split()[0] for line in file.readlines()]

@@ -231,7 +231,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--strategy', default='greedy', type=str)
 
-    parser.add_argument('--task', type=str, default='dude-smi',choices=['dude-smi','lit-smi','lit-pkl'])
+    parser.add_argument('--task', type=str, default='dude-smi',choices=['dude-smi','lit-smi','lit-pkl','dude-z'])
     parser.add_argument('--name', type=str, default='aa2ar')
     parser.add_argument('--dim', type=int, default=2048)
     parser.add_argument('--types', type=str, default='bit',choices=['norm','bit'])
@@ -245,14 +245,25 @@ if __name__ == "__main__":
 
     device = torch.device('cuda:{}'.format(args.device))
     feature, label, score, ecfp, smiles_list = get_dataset(args.task,args.types,args.name,args.dim,args.clip)
-    if args.name in ['ALDH1']:
+    if args.name in []:
         par = np.loadtxt(f'./vs/raw_data/cluster/{args.task}-{args.name}-{128}-{args.types}-{args.scale}-{args.clip}.txt')
-    elif args.name in ['VDR', 'PKM2', 'MAPK1', 'MTORC1','ESR_antago','TP53'] and args.strategy == 'ranking':
+    elif args.strategy == 'ranking':
         # knn = faiss_search_approx_knn(feature, feature, args.neighbor, num_gpu=2, norm=(args.types=='norm' or args.clip))
         neigh = NearestNeighbors(n_neighbors=args.neighbor).fit(feature)
         _, knn = neigh.kneighbors(feature)
-        # par, cluster_dict = fast_prob_clustering(knn, ecfp, scale=args.scale)
-        par, cluster_dict = classic_clustering(method='minik', feature=feature)
+        par, cluster_dict = fast_prob_clustering(knn, ecfp, scale=args.scale)
+        # par, cluster_dict = classic_clustering(method='minik', feature=feature)
+        # clusterer = BitBirch(threshold=0.65, branching_factor=100)
+        # clusterer.fit(feature)
+        # cluster_list = clusterer.get_cluster_mol_ids()
+        # n_molecules = len(feature)
+        # cluster_labels = [0] * n_molecules
+        # cluster_dict = dict()
+        # for cluster_id, indices in enumerate(cluster_list):
+        #     for idx in indices:
+        #         cluster_labels[idx] = cluster_id
+        #     cluster_dict[cluster_id] = set(indices)
+        # par = np.array(cluster_labels)
         rate = recall_resource_ratio(label, par, cluster_dict)
         print(f'active molecules purity: {rate}.')
     

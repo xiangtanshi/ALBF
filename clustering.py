@@ -5,7 +5,8 @@ import faiss
 from data_loader import *
 import time
 from sklearn.cluster import Birch, MiniBatchKMeans
-
+from bitbirch import *
+from sklearn.neighbors import NearestNeighbors
 
 def faiss_search_approx_knn(query, target, k, num_gpu, norm=True):
     if norm:
@@ -150,22 +151,24 @@ def classic_clustering(method: str = 'birch', feature: np.array = None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='set the file for processing.')
-    parser.add_argument('--task', type=str, default='dude-smi',choices=['dude-smi','lit-smi','lit-pkl'])
+    parser.add_argument('--task', type=str, default='dude-z',choices=['dude-smi','lit-smi','lit-pkl','dude-z'])
     parser.add_argument('--name', type=str, default='aa2ar')
     parser.add_argument('--dim', type=int, default=128)
     parser.add_argument('--types', type=str, default='bit',choices=['norm','bit'])
     parser.add_argument('--clip', action='store_true', default=False)
     parser.add_argument('--neighbor', type=int, default=50)
     parser.add_argument('--scale', type=float,default=1.0)
-    parser.add_argument('--method', default='pc', choices=['pc','birch','minik'])
+    parser.add_argument('--method', default='pc', choices=['pc','birch','minik','bitbirch'])
     args = parser.parse_args()
     start_t = time.time()
 
     feature, label, score, ecfp, smiles_list = get_dataset(args.task,args.types,args.name,args.dim,args.clip)
     
     if args.method == 'pc':
-        knn = faiss_search_approx_knn(feature, feature, args.neighbor, num_gpu=2, norm=(args.types=='norm' or args.clip))
-        np.savetxt(f'./vs/raw_data/knn/{args.task}-{args.name}-{args.clip}.txt', knn, fmt='%d')
+        # knn = faiss_search_approx_knn(feature, feature, args.neighbor, num_gpu=2, norm=(args.types=='norm' or args.clip))
+        neigh = NearestNeighbors(n_neighbors=args.neighbor).fit(feature)
+        _, knn = neigh.kneighbors(feature)
+        # np.savetxt(f'./vs/raw_data/knn/{args.task}-{args.name}-{args.clip}.txt', knn, fmt='%d')
         # import sys
         # sys.exit()
         par, cluster_dict = fast_prob_clustering(knn, ecfp, scale=args.scale)
@@ -174,7 +177,25 @@ if __name__ == '__main__':
         dict_info(cluster_dict)
         rate = recall_resource_ratio(label, par, cluster_dict)
         print(f'setting: task-name-dim-types-clip-scale-time: {args.task}-{args.name}-{args.dim}-{args.types}-{args.clip}-{args.scale}-{duration:.2f}\tactive molecules purity:{rate}')
-        np.savetxt(f'./vs/raw_data/cluster/{args.task}-{args.name}-{args.dim}-{args.types}-{args.scale}-{args.clip}.txt', par, fmt='%d')
+        # np.savetxt(f'./vs/raw_data/cluster/{args.task}-{args.name}-{args.dim}-{args.types}-{args.scale}-{args.clip}.txt', par, fmt='%d')
+    elif args.method == 'bitbirch':
+        clusterer = BitBirch(threshold=0.6, branching_factor=100)
+        clusterer.fit(feature)
+        cluster_list = clusterer.get_cluster_mol_ids()
+        n_molecules = len(feature)
+        cluster_labels = [0] * n_molecules
+        cluster_dict = dict()
+        for cluster_id, indices in enumerate(cluster_list):
+            for idx in indices:
+                cluster_labels[idx] = cluster_id
+            cluster_dict[cluster_id] = set(indices)
+        par = np.array(cluster_labels)
+        end_t = time.time()
+        duration = end_t - start_t
+        dict_info(cluster_dict)
+        rate = recall_resource_ratio(label, par, cluster_dict)
+        print(f'setting: task-name-dim-types-method-time: {args.task}-{args.name}-{args.dim}-{args.types}-{args.method}-{duration:.2f}\tactive molecules purity:{rate}')
+        # np.savetxt(f'./vs/raw_data/bitbirch_cluster/{args.task}-{args.name}-{args.dim}-{args.types}-{args.method}-5.txt', par, fmt='%d')
     else:
         par, cluster_dict = classic_clustering(method=args.method, feature=feature)
         end_t = time.time()

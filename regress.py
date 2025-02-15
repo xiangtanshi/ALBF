@@ -317,7 +317,7 @@ if __name__ == "__main__":
     parser.add_argument('--num', type=int, default=25000)
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--seed', default=42, type=int)
-    parser.add_argument('--task', type=str, default='lit-smi',choices=['dude-smi','lit-smi','lit-pkl'])
+    parser.add_argument('--task', type=str, default='lit-smi',choices=['dude-smi','lit-smi','lit-pkl','dude-z'])
     parser.add_argument('--name', type=str, default='akt1')
     parser.add_argument('--dim', type=int, default=2048)
     parser.add_argument('--types', type=str, default='bit',choices=['norm','bit'])

@@ -120,74 +120,10 @@ def active_regression(args, feature, label, ecfp, par, device):
     # save the final model
     model.cpu()
     # torch.save(model, './datas/model/wet_{}.pt'.format(name))
-    print(f'task-name-bs-strategy:{args.task}-{args.name}-{args.bs}-{args.strategy},{l1},{l2},{l3}')
+    print(f'task-name-bs-strategy-seed:{args.task}-{args.name}-{args.bs}-{args.strategy}-{args.seed},{l1},{l2},{l3}')
 
     return 1
 
-def active_regression_prior(args, feature, label, ecfp, par, device):
-    # bio-activity as the feedback for finetuning the score function net
-
-    print(f'Active query batch size:{args.bs}')
-
-    test_dataloader = create_dataset(feature, np.arange(len(label)), label, 4096, False)
-    model = MLP(input_size=args.dim, output_size=args.out_dim)
-    model.load_state_dict(torch.load(args.model_path))
-    # model = torch.load('./models/s-model-1024/lit-smi-{}.pt'.format(args.name))
-    model = model.to(device)
-
-    # evaluate the model
-    eval_score, auc, re_n1, re_n2 = evaluate(test_dataloader, model, label, device)
-    print(f"initial model, AUC: {auc}, active numbers top-100:{re_n1}, top-0.5%:{re_n2}")
-
-    N = feature.shape[0]
-    classes = len(np.unique(par))
-    cluster_dict = dict()
-    for i in range(classes):
-        cluster_dict[i] = set()
-    for i in range(N):
-        cluster_dict[par[i]].add(i)
-
-    unlabel_index = np.ones(N)
-
-    l1,l2,l3= [re_n1],[re_n2],[0]
-    for i in range(-1, args.rounds):
-        print("Round:", i)
-        # acquire new batch of molecules
-        if i < 0:
-            # select 1 active and 63 inactive
-            decoy_indices = np.random.choice(np.where(label == 0)[0], size=63, replace=False)
-            active_indices = np.random.choice(np.where(label == 1)[0], size=1, replace=False)
-            selected_indices = np.concatenate([active_indices, decoy_indices])
-        else:
-            if args.strategy == 'random':
-                selected_indices = Strategy().Random(unlabel_index, args.bs, eval_score)
-            elif args.strategy == 'greedy':
-                selected_indices = Strategy().Greedy(unlabel_index, args.bs, eval_score)
-            elif args.strategy == 'greedy-diverse':
-                selected_indices = Strategy().Greedy_diverse(unlabel_index, args.bs, eval_score, feature)
-            elif args.strategy == 'ranking':
-                selected_indices = Strategy().Cluster_and_rank(unlabel_index, args.bs, eval_score, par, cluster_dict)
-        unlabel_index[selected_indices] = 0
-        label_index = np.where(unlabel_index==0)[0]
-
-        cur_dataloader = create_dataset(feature, label_index, label * 20 , args.bs, shuffle=True)
-        # cur_dataloader = create_dataset(feature, selected_indices, label * 15, len(selected_indices), shuffle=True)
-        model = ft(model, cur_dataloader, args, device)
-
-        # evaluate the model
-        eval_score, auc, re_n1, re_n2 = evaluate(test_dataloader, model, label, device)
-        selected_score = eval_score[label_index]
-        real_label = label[label_index]
-        test_active = np.sum(label[label_index])
-        # print(f"epoch: {i}, selected active by the strategy: {test_active}; after training, the results are AUC: {auc}, active molecules top-100:{re_n1}, top-0.5%:{re_n2}")
-        l1.append(re_n1); l2.append(re_n2); l3.append(test_active)
-
-    # save the final model
-    model.cpu()
-    # torch.save(model, './datas/model/wet_{}.pt'.format(name))
-    print(f'task-name-bs-strategy:{args.task}-{args.name}-{args.bs}-{args.strategy},{l1},{l2},{l3}')
-
-    return 1
 
 # Example usage
 if __name__ == "__main__":
@@ -223,8 +159,6 @@ if __name__ == "__main__":
     # knn = knn.astype(int)
 
 
-    # baseline: iterative choose top score mol for wet lab
     active_regression(args, feature, label, ecfp, par, device)
-    
-    # active_regression_prior(args, feature, label, ecfp, par, knn, device)
+
 
